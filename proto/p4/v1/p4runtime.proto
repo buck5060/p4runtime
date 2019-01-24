@@ -690,6 +690,14 @@ message Error {
   google.protobuf.Any details = 5;
 }
 
+message RoleConfig {
+  message RoleConfigEntry {
+    bool shared = 1;
+    Entity entity = 2;
+  }
+  repeated RoleConfigEntry entries = 1;
+}
+
 //------------------------------------------------------------------------------
 // Reserved controller-specified SDN port numbers for reference.
 enum SdnPort {

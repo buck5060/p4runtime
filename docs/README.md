@@ -156,9 +156,30 @@ Do not use backticks for:
 * Each significant word in a heading / section name
 * PSA extern names
 
+#### Hexadecimal numbers
+
+We use lowercase for the letter digits when writing hexadecimal numbers. This is
+a very arbitrary decision, purely for the sake of uniformity. Maybe lowercase
+letters are easier to type for most people?
+
+### Hyphen, en dash and em dash
+
+Use `-` for the hyphen, `--` for en dash and `---` for em dash. You can refer to
+this [section of the Madoko
+spec](http://madoko.org/reference.html#sec-smart-quotes-symbols-and-direct-links).
+
 ## Document Figures
-Each image in the specification has a corresponding `.odg` file under `assets/`. These are OfficeLibre drawing files. The files are rendered into `.svg` and `.png` images (for HTML and PDF output, resepectively) at build time, using the `soffice` command-line tool. The page size for each image should be adjusted manually by the author ("artist") to just fit the image on the apparrent "page," to minimize padding around the image in the rendered document. Use the menu item `Format | Page/Size Properties.` See the example screen shot below. (Do not check the "Fit object to paper format" box - it will change the object's aspect ratio.)
-![OfficeLibre](office-libre.png)
+Each image in the specification has a corresponding `.odg` file under
+`assets/`. These are LibreOffice drawing files. The files are rendered into
+`.svg` and `.png` images (for HTML and PDF output, resepectively) at build time,
+using the `soffice` command-line tool. The page size for each image should be
+adjusted manually by the author ("artist") to just fit the image on the
+apparrent "page," to minimize padding around the image in the rendered
+document. Use the menu item `Format | Page/Size Properties.` See the example
+screen shot below. (Do not check the "Fit object to paper format" box - it will
+change the object's aspect ratio.)
+![LibreOffice](libre-office.png)
+
 ## CI upload of built documents
 
 Travis takes care of uploading the built HTML version of the spec to AWS S3. The

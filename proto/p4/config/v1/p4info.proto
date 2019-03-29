@@ -41,7 +41,8 @@ message P4Info {
 message Documentation {
   // A brief description of something, e.g. one sentence
   string brief = 1;
-  // A more verbose description of something. Multiline is accepted. Markup format (if any) is TBD.
+  // A more verbose description of something. Multiline is accepted. Markup
+  // format (if any) is TBD.
   string description = 2;
 }
 
@@ -117,14 +118,14 @@ message Preamble {
   uint32 id = 1;
   // fully qualified name of the P4 object, e.g. c1.c2.ipv4_lpm
   string name = 2;
-  // an alias for the P4 object, probably shorter than its name. The only
-  // constraint is for it to be unique with respect to other P4 objects of the
-  // same type. By default, the compiler uses the shortest suffix of the name
-  // that uniquely identifies the object. For example if the P4 program
-  // contains two tables with names s.c1.t and s.c2.t, the default aliases will
-  // respectively be c1.t and c2.t. The P4 programmer may also override the
-  // default alias for any P4 object (TBD). When resolving a P4 object id, an
-  // application should be able to indiscriminately use the name or the alias.
+  // an alias (alternative name) for the P4 object, probably shorter than its
+  // fully qualified name. The only constraint is for it to be unique with
+  // respect to other P4 objects of the same type. By default, the compiler uses
+  // the shortest suffix of the name that uniquely identifies the object. For
+  // example if the P4 program contains two tables with names s.c1.t and s.c2.t,
+  // the default aliases will respectively be c1.t and c2.t. In the future, the
+  // P4 programmer may also be able to override the default alias for any P4
+  // object (TBD).
   string alias = 3;
   repeated string annotations = 4;
   // Documentation of the entity
@@ -147,7 +148,6 @@ message ExternInstance {
   google.protobuf.Any info = 2;
 }
 
-// TODO(antonin): define inside the Table message?
 message MatchField {
   uint32 id = 1;
   string name = 2;
@@ -162,7 +162,7 @@ message MatchField {
   }
   oneof match {
     MatchType match_type = 5;
-    // used for achitecture-specific match types which are not part of the core
+    // used for architecture-specific match types which are not part of the core
     // P4 language or of the PSA architecture.
     string other_match_type = 7;
   }
@@ -182,11 +182,6 @@ message Table {
   repeated ActionRef action_refs = 3;
   // 0 (default value) means that the table does not have a const default action
   uint32 const_default_action_id = 4;
-  // a table may have a const default action, whose action parameter values can
-  // be changed at runtime. However, in most cases the parameters of the default
-  // action are also bound at compile-time and cannot be changed by the runtime,
-  // which is what this boolean flag indicates.
-  bool const_default_action_has_mutable_params = 5;
   // P4 id of the "implementation" for this table (e.g. action profile id); 0
   // (default value) means that the table is a regular (direct) match table. As
   // of today, only action profiles are supported but other table
@@ -215,6 +210,12 @@ message Table {
 // used to list all possible actions in a Table
 message ActionRef {
   uint32 id = 1;
+  enum Scope {
+    TABLE_AND_DEFAULT = 0;
+    TABLE_ONLY = 1;
+    DEFAULT_ONLY = 2;
+  }
+  Scope scope = 3;
   repeated string annotations = 2;
 }
 
@@ -264,6 +265,8 @@ message Counter {
   CounterSpec spec = 2;
   // number of entries in the counter array
   int64 size = 3;
+  // unset if index is not user-defined type
+  P4NamedType index_type_name = 4;
 }
 
 message DirectCounter {
@@ -288,6 +291,8 @@ message Meter {
   MeterSpec spec = 2;
   // number of entries in the meter array
   int64 size = 3;
+  // unset if index is not user-defined type
+  P4NamedType index_type_name = 4;
 }
 
 message DirectMeter {
@@ -322,9 +327,8 @@ message ControllerPacketMetadata {
 
 message ValueSet {
   Preamble preamble = 1;
-  int32 bitwidth = 2;
-  // The value set size should be extracted from the @size annotation into the
-  // field below. The @size annotation will also appear in the preamble.
+  repeated MatchField match = 2;
+  // number of entries in the value_set, as per the P4 constructor call.
   int32 size = 3;
 }
 
@@ -332,6 +336,8 @@ message Register {
   Preamble preamble = 1;
   P4DataTypeSpec type_spec = 2;
   int32 size = 3;
+  // unset if index is not user-defined type
+  P4NamedType index_type_name = 4;
 }
 
 message Digest {

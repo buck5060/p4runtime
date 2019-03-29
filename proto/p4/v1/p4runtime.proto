@@ -19,8 +19,6 @@ import "google/rpc/status.proto";
 import "p4/config/v1/p4info.proto";
 import "p4/v1/p4data.proto";
 
-// P4_14 spec: http://p4.org/wp-content/uploads/2015/04/p4-latest.pdf
-
 // This package and its contents are a work-in-progress.
 
 package p4.v1;
@@ -33,24 +31,25 @@ service P4Runtime {
   rpc Read(ReadRequest) returns (stream ReadResponse) {
   }
 
-  // Sets the P4 fowarding-pipeline config.
+  // Sets the P4 forwarding-pipeline config.
   rpc SetForwardingPipelineConfig(SetForwardingPipelineConfigRequest)
       returns (SetForwardingPipelineConfigResponse) {
   }
-  // Gets the current P4 fowarding-pipeline config.
+  // Gets the current P4 forwarding-pipeline config.
   rpc GetForwardingPipelineConfig(GetForwardingPipelineConfigRequest)
       returns (GetForwardingPipelineConfigResponse) {
   }
 
   // Represents the bidirectional stream between the controller and the
   // switch (initiated by the controller), and is managed for the following
-  // purposes: - connection initiation through master arbitration -
-  // indicating switch session liveness: the session is live when switch
-  // sends
-  //   a positive master arbitration update to the controller, and is
+  // purposes:
+  // - connection initiation through master arbitration
+  // - indicating switch session liveness: the session is live when switch
+  //   sends a positive master arbitration update to the controller, and is
   //   considered dead when either the stream breaks or the switch sends a
   //   negative update for master arbitration
   // - the controller sending/receiving packets to/from the switch
+  // - streaming of notifications from the switch
   rpc StreamChannel(stream StreamMessageRequest)
       returns (stream StreamMessageResponse) {
   }
@@ -67,24 +66,24 @@ message WriteRequest {
   repeated Update updates = 4;
   enum Atomicity {
     // Required. This is the default behavior. The batch is processed in a
-    // non-atomic manner from a dataplane point of view. Each operation within
+    // non-atomic manner from a data plane point of view. Each operation within
     // the batch must be attempted even if one or more encounter errors.
-    // Every dataplane packet is guaranteed to be processed according to
+    // Every data plane packet is guaranteed to be processed according to
     // table contents as they are between two individual operations of the
     // batch, but there could be several packets processed that see each of
     // these intermediate stages.
     CONTINUE_ON_ERROR = 0;
-    // Optional. Operations within the batch are committed to dataplane until
+    // Optional. Operations within the batch are committed to data plane until
     // an error is encountered. At this point, the operations must be rolled
-    // back such that both software and dataplane state is consistent with the
+    // back such that both software and data plane state is consistent with the
     // state before the batch was attempted. The resulting behavior is
     // all-or-none, except the batch is not atomic from a data plane point of
-    // view. Every dataplane packet is guaranteed to be processed according to
+    // view. Every data plane packet is guaranteed to be processed according to
     // table contents as they are between two individual operations of the
     // batch, but there could be several packets processed that see each of
     // these intermediate stages.
     ROLLBACK_ON_ERROR = 1;
-    // Optional. Every dataplane packet is guaranteed to be processed according
+    // Optional. Every data plane packet is guaranteed to be processed according
     // to table contents before the batch began, or after the batch completed
     // and the operations were programmed to the hardware.
     // The batch is therefore treated as a transaction. 
@@ -104,8 +103,6 @@ message ReadRequest {
 
 message ReadResponse {
   repeated Entity entities = 1;
-  // Set to true if no responses will follow this one.
-  bool complete = 2;
 }
 
 message Update {
@@ -144,28 +141,16 @@ message ExternEntry {
   google.protobuf.Any entry = 3;
 }
 
-// From Section 11 of P4_14 spec:
-// At run time, the table entry insert operation (not part of P4) must specify:
-// - Values for each field specified in the reads entry.
-// - The name of the action from the action_specification or the
-//   action_profile_specification and the parameters to be passed to the action
-//   function when it is called.
 message TableEntry {
   uint32 table_id = 1;
   repeated FieldMatch match = 2;
   TableAction action = 3;
   // Should only be set if the match implies a TCAM lookup, i.e. at least one of
-  // the match fields is Ternary or Range.
-  // A higher number indicates higher priority.
-  // Only the highest priority entry that matches the packet must be selected.
-  // Given an existing entry with prority k, if the controller tries to insert
-  // or modify another entry with priority k such that a packet may match both
-  // entries, an error is returned. This will be the case if the overlap is
-  // strict (entries are identical) or not.
-  // In the future, if there is a use-case, a table-level annotation may be
-  // introduced to make the overlap check non-strict. In that case, if there
-  // are multiple matching entries with the same highest priority, the selected
-  // entry will be explicitly undefined.
+  // the match fields is Ternary or Range.  A higher number indicates higher
+  // priority.  Only a highest priority entry that matches the packet must be
+  // selected.  Multiple entries in the same table with the same priority value
+  // are permitted.  See Section "TableEntry" in the specification for details
+  // of the behavior.
   int32 priority = 4;
   // Metadata (cookie) opaque to the target. There is no requirement of where
   // this is stored, as long as it is returned with the rest of the entry in
@@ -182,15 +167,16 @@ message TableEntry {
   //     the direct resources of this table (if any) will assume default values.
   //     For counters, the default value is 0, and for meters, the default value
   //     is always green.
-  //   - When updating a table entry, leaving these fields unset means that the
-  //     direct resources (if any) will not be updated.
+  //   - When updating a table entry, leaving meter_config unset will reset the
+  //     meter (if any) to its default configuration, while leaving counter_data
+  //     unset means that the counter (if any) will not be updated.
   // Table read:
   //   - If the table does not contain a direct resource, then the corresponding
   //     field will not be set in the read table entry.
-  //   - If the meter_config field has default value, it will not be set in the
-  //     read table entry.
-  //   - The counter_data field will always be set in a read table entry if the
-  //     table contains a direct counter.
+  //   - If meter_config is unset in the request, or if the meter has a default
+  //     configuration, meter_config will not be set in the response.
+  //   - If counter_data is unset in the request, it will be unset in the
+  //     response as well.
   MeterConfig meter_config = 6;
   CounterData counter_data = 7;
   // Set to true if the table entry is being used to update the non-const
@@ -202,10 +188,10 @@ message TableEntry {
   int64 idle_timeout_ns = 9;
   message IdleTimeout {
     // Time elapsed - in nanoseconds - since the table entry was last "hit" as
-    // part of a dataplane table lookup.
+    // part of a data plane table lookup.
     int64 elapsed_ns = 1;
   }
-  // Table wite: this field should be left unset.
+  // Table write: this field should be left unset.
   // Table read: if the table supports idle timeout and time_since_last_hit is
   // set in the request, this field will be set in the response.
   IdleTimeout time_since_last_hit = 10;
@@ -344,8 +330,6 @@ message DirectMeterEntry {
 // associated burst sizes to be either green, yellow, or red.  A packet is
 // marked red if it exceeds the PIR.  Otherwise it is marked either yellow or
 // green depending on whether it exceeds or doesn't exceed the CIR.
-//
-// TODO: This is not metering protocol-independent!
 message MeterConfig {
   // Committed information rate (units per sec)
   int64 cir = 1;
@@ -435,27 +419,30 @@ message CloneSessionEntry {
   int32 packet_length_bytes = 4;
 }
 
+// A member in a P4 value set. Each member defines a list of matches, which can
+// have different match types.
+message ValueSetMember {
+  repeated FieldMatch match = 1;
+}
+
 //------------------------------------------------------------------------------
 // For writing and reading matches in a parser value set. A state transition
 // on an empty value set will never be taken. The number of matches must be at
-// most the size of the value set as specified by the @size annotation in P4
-// program.
+// most the size of the value set as specified by the size argument of the
+// value_set constructor in the P4 program.
 //
 // For Write Requests:
-//    INSERT will write the given matches in the repeated field to the value
-//    set.
-//    MODIFY will replace all matches in the value set with the given matches
-//    in the repeated field.
-//    DELETE should only specify the value_set_id and will delete all matches
-//    in the value set.
+//   - MODIFY will write the given matches in the repeated field to the value
+//     set.
+//   - INSERT and DELETE are not allowed.
 //
 // For Read Requests:
-//    All matches for all value-set entries if value_set_id = 0
-//    All matches of the value-set if a valid value_set_id is specified
-//    The 'match' field must never be set in the ReadRequest
+//   - All matches for all value-set entries if value_set_id = 0
+//   - All matches of the value-set if a valid value_set_id is specified
+//   - The 'match' field must never be set in the ReadRequest
 message ValueSetEntry {
   uint32 value_set_id = 1;
-  repeated FieldMatch match = 2;
+  repeated ValueSetMember members = 2;
 }
 
 message RegisterEntry {
@@ -486,6 +473,7 @@ message StreamMessageRequest {
     MasterArbitrationUpdate arbitration = 1;
     PacketOut packet = 2;
     DigestListAck digest_ack = 3;
+    google.protobuf.Any other = 4;
   }
 }
 
@@ -513,6 +501,7 @@ message StreamMessageResponse {
     PacketIn packet = 2;
     DigestList digest = 3;
     IdleTimeoutNotification idle_timeout_notification = 4;
+    google.protobuf.Any other = 5;
   }
 }
 
@@ -565,18 +554,20 @@ message MasterArbitrationUpdate {
 }
 
 message Role {
-  // Role IDs are defined offline in agreement across the entire control plane.
+  // Uniquely identifies this role.
   uint64 id = 1;
   // Describes the role configuration, i.e. what operations, P4 entities,
   // behaviors, etc. are in the scope of a given role. If config is not set
-  // (default case), it implies all P4 objects and control behaviors are in scope,
-  // i.e. full pipeline access.
+  // (default case), it implies all P4 objects and control behaviors are in
+  // scope, i.e. full pipeline access. The format of this message is
+  // out-of-scope of P4Runtime.
   google.protobuf.Any config = 2;
 }
 
 message IdleTimeoutNotification {
-  // Only "key" fields are required to be set in each TableEntry: table_id,
-  // match and priority.
+  // The only fields that are required to be set in each TableEntry are the
+  // "key" fields (table_id, match and priority) along with controller_metadata
+  // and idle_timeout_ns.
   repeated TableEntry table_entry = 1;
   // Timestamp at which the server generated the message (in nanoseconds since
   // Epoch)
@@ -643,7 +634,7 @@ message ForwardingPipelineConfig {
   // to uniquely identify this config. There are no restrictions on how such
   // value is computed, or where this is stored on the target, as long as it is
   // returned with a GetForwardingPipelineConfig RPC. When reading the cookie,
-  // we need to distibuish those cases where a cookie is NOT present (e.g. not
+  // we need to distinguish those cases where a cookie is NOT present (e.g. not
   // set in the SetForwardingPipelineConfigRequest, therefore we wrap the actual
   // uint64 value in a protobuf message.
   message Cookie {
@@ -705,11 +696,11 @@ enum SdnPort {
   SDN_PORT_UNKNOWN = 0;
   // SDN ports are numbered starting form 1.
   SDN_PORT_MIN = 1;
-  // 0xFFFFFEFF: The maximum value of an SDN port (physical or logical).
+  // 0xfffffeff: The maximum value of an SDN port (physical or logical).
   SDN_PORT_MAX = -257;
-  // Reserved SDN port numbers (0xFFFFFF00 - 0xFFFFFFFF)
-  // 0xFFFFFFFA: Recirculate the packet back to ingress
+  // Reserved SDN port numbers (0xffffff00 - 0xffffffff)
+  // 0xfffffffa: Recirculate the packet back to ingress
   SDN_PORT_RECIRCULATE = -6;
-  // 0xFFFFFFFD: Send to CPU
+  // 0xfffffffd: Send to CPU
   SDN_PORT_CPU = -3;
 }
